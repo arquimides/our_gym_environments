@@ -5,6 +5,9 @@ Coffee task RL environment for experiments on Causal-RL.
 
 `pip install -e .`
 
+### Installing Tkinter for Dynamic plotting
+apt-get install python-tk
+
 ### Testing Installation
 ```
 import gym
