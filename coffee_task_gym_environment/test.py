@@ -14,6 +14,7 @@ plotter = PlayPlot(callback, 30 * 5, ["reward"])
 env = gym.make("CoffeeTaskEnv-v0")
 play(env, keys_to_action=mapping, callback=plotter.callback )
 
+
 # env = gym.make("CoffeeTaskEnv-v0", env_type = "stochastic")
 # env.reset()
 # for _ in range(1000):
