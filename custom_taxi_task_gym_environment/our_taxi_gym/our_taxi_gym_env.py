@@ -108,23 +108,45 @@ class OurTaxiEnv(Env):
 
     metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 4}
 
-    def __init__(self):
+    def __init__(self, env_type = "stochastic"):
+
+        self.env_type = env_type
         self.desc = np.asarray(MAP, dtype="c")
 
         self.locs = locs = [(0, 0), (0, 4), (4, 0), (4, 3)]
         self.locs_colors = [(255, 0, 0), (0, 255, 0), (255, 255, 0), (0, 0, 255)]
 
-        num_states = 500
+        # stochastic transition probabilities TODO Fill this values later
+        # self.go_change_location_probability = 0.9
+        # self.go_get_wet_if_rain_and_not_umbrella_probability = 0.9
+        # self.gu_ok_probability = 0.9
+        # self.bc_ok_probability = 0.8
+        # self.dc_user_have_and_robot_not_probability = 0.8
+        # self.dc_in_coffee_shop_probability = 0.9
+        # # rain stuff
+        # self.rain_probability = 0.3
+        # self.rain_stop_probability = 0.3
+        # self.max_rain = 25
+        # self.rain_time = 0
+
+        self.num_states = 500
         num_rows = 5
         num_columns = 5
         max_row = num_rows - 1
         max_col = num_columns - 1
         subgoal = 0
-        self.initial_state_distrib = np.zeros(num_states)
+        self.initial_state_distrib = np.zeros(self.num_states)
+
+        self.s = 0
         num_actions = 6
+        self.actions = ["south", "north", "east", "west", "pick", "drop"]
+        self.state_variables_names = ["wpI", "lI", "wpJ", "lJ"]
+        self.reward_variables_names = ["reward"]
+        self.states = [[wp, l] for wp in range(2) for l in range(3)]
+
         self.P = {
             state: {action: [] for action in range(num_actions)}
-            for state in range(num_states)
+            for state in range(self.num_states)
         }
         for row in range(num_rows):
             for col in range(num_columns):
@@ -178,8 +200,9 @@ class OurTaxiEnv(Env):
                             )
                             self.P[state][action].append((1.0, new_state, reward, done))
         self.initial_state_distrib /= self.initial_state_distrib.sum()
+
         self.action_space = spaces.Discrete(num_actions)
-        self.observation_space = spaces.Discrete(num_states)
+        self.observation_space = spaces.Discrete(self.num_states)
 
         # pygame utils
         self.window = None
