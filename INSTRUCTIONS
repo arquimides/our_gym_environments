@@ -1,2 +1,0 @@
-Every environment inside this folder is independent.
-Each have their own venv folder and test.py file to make test.
