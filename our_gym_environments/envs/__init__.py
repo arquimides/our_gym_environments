@@ -1,0 +1,3 @@
+from our_gym_environments.envs.coffee_task_env import CoffeeTaskEnv
+from our_gym_environments.envs.taxi_small_env import TaxiSmallEnv
+from our_gym_environments.envs.taxi_big_env import TaxiBigEnv
