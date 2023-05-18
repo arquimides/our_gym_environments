@@ -5,9 +5,9 @@ from typing import Optional
 
 import numpy as np
 
-from gym import Env, spaces, utils
-from gym.envs.toy_text.utils import categorical_sample
-from gym.error import DependencyNotInstalled
+from gymnasium import Env, spaces, utils
+from gymnasium.envs.toy_text.utils import categorical_sample
+from gymnasium.error import DependencyNotInstalled
 
 MAP = [
     "+---------+",
@@ -411,7 +411,7 @@ class TaxiSmallEnv(Env):
             import pygame  # dependency to pygame only if rendering with human
         except ImportError:
             raise DependencyNotInstalled(
-                "pygame is not installed, run `pip install gym[toy_text]`"
+                "pygame is not installed, run `pip install gymnasium[toy_text]`"
             )
 
         if self.window is None:

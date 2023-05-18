@@ -5,9 +5,9 @@ from typing import Optional
 
 import numpy as np
 
-from gym import Env, spaces, utils
-from gym.envs.toy_text.utils import categorical_sample
-from gym.error import DependencyNotInstalled
+from gymnasium import Env, spaces, utils
+from gymnasium.envs.toy_text.utils import categorical_sample
+from gymnasium.error import DependencyNotInstalled
 
 MAP = [
     "+---------+",
@@ -101,12 +101,15 @@ class CoffeeTaskEnv(Env):
     * v0: Initial versions release
     """
 
-    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"]}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 4, "environment_type": ["stochastic", "deterministic"]}
 
-    def __init__(self, env_type = "stochastic", render_fps = 64):
+    def __init__(self, render_mode = None, env_type = "stochastic", render_fps = 4):
 
+        assert env_type == "stochastic" or env_type in self.metadata["environment_type"]
         self.env_type = env_type
-        self.metadata["render_fps"] = render_fps
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.render_mode = render_mode
+        self.render_fps = render_fps
 
         self.desc = np.asarray(MAP, dtype="c")
 
@@ -542,6 +545,8 @@ class CoffeeTaskEnv(Env):
             new_sl], SR[new_sr], SU[new_su], SW[new_sw], SC[new_sc])
 
         #print (info)
+        if self.render_mode == "human":
+            self._render_gui(info)
 
         return int(s), reward, done, False, {"prob": 1, "description": info}
 
@@ -562,18 +567,22 @@ class CoffeeTaskEnv(Env):
             self.s = categorical_sample(self.initial_state_distrib, self.np_random)
             self.last_action = None
             self.taxi_orientation = 0
+
+        if self.render_mode == "human":
+            self._render_gui({})
+
         if not return_info:
             return (int(self.s),{})
         else:
             return (int(self.s), {"prob": 1})
 
-    def render(self, mode="human",info = {}):
-        if mode == "ansi":
+    def render(self, info = {}):
+        if self.render_mode == "ansi":
             return self._render_text()
         else:
-            return self._render_gui(mode, info)
+            return self._render_gui(info)
 
-    def _render_gui(self, mode, info):
+    def _render_gui(self, info):
 
         sl, su, sr, sw, sc = self.decode(self.s)
 
@@ -587,13 +596,14 @@ class CoffeeTaskEnv(Env):
         if self.window is None:
             pygame.init()
             pygame.display.set_caption("Coffee Task")
-            if mode == "human":
+            if self.render_mode == "human":
                 self.window = pygame.display.set_mode(WINDOW_SIZE)
             else:  # "rgb_array"
                 self.window = pygame.Surface(WINDOW_SIZE)
 
         if info is not None:
-            pygame.display.set_caption("TaxiBig. Episode: " + info['episode_number'] + " Steps: " + info['step_number'] + " Episode reward: " + info['reward'])
+            # pygame.display.set_caption("Coffee Task. Episode: " + info['episode_number'] + " Steps: " + info['step_number'] + " Episode reward: " + info['reward'])
+            pygame.display.set_caption("Coffee Task")
 
         if self.clock is None:
             self.clock = pygame.time.Clock()
@@ -712,9 +722,9 @@ class CoffeeTaskEnv(Env):
                 (dest_loc[0], dest_loc[1] - self.cell_size[1] // 2),
             )
 
-        if mode == "human":
+        if self.render_mode == "human":
             pygame.display.update()
-            self.clock.tick(self.metadata["render_fps"])
+            self.clock.tick(self.render_fps)
         else:  # rgb_array
             return np.transpose(
                 np.array(pygame.surfarray.pixels3d(self.window)), axes=(1, 0, 2)
