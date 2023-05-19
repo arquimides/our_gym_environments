@@ -45,7 +45,7 @@ class CoffeeTaskEnv(Env):
 
     ### Actions
     There are 4 discrete deterministic actions:
-    - 0: GO changing the robot's location and the robot can get wet if it rains and it does not have an umbrella
+    - 0: GO changing the robot's location and the robot can get wet if it rains, and it does not have an umbrella
     - 1: GU causes it to hold an umbrella if it is in the office
     - 2: BC causes the robot to hold coffee if it is in the coffee shop
     - 3: DC causes the user to hold coffee if the robot has coffee and is in the office
@@ -101,7 +101,7 @@ class CoffeeTaskEnv(Env):
 
     metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 4, "environment_type": ["stochastic", "deterministic"]}
 
-    def __init__(self, render_mode = None, env_type = "stochastic", render_fps = 4):
+    def __init__(self, render_mode=None, env_type="stochastic", render_fps=4):
 
         assert env_type == "stochastic" or env_type in self.metadata["environment_type"]
         self.env_type = env_type
@@ -338,6 +338,12 @@ class CoffeeTaskEnv(Env):
         self.action_space = spaces.Discrete(self.num_actions)
         self.observation_space = spaces.Discrete(self.num_states)
 
+        self.info = None
+        self.last_action = None
+        self.last_reward = 0
+        self.total_reward = 0
+        self.step_number = 0
+
         # pygame utils
         self.window = None
         self.clock = None
@@ -352,6 +358,33 @@ class CoffeeTaskEnv(Env):
         self.median_horiz = None
         self.median_vert = None
         self.background_img = None
+
+
+    def _get_info(self):
+
+        state = self.decode(self.s)
+
+        SL = ["Office", "CoffeeShop"]
+        SU = ["YES", "NO"]
+        SR = ["YES", "NO"]
+        SW = ["YES", "NOT"]
+        SC = ["YES", "NOT"]
+
+        # info = "The robot take the action {}. Now it is at {} and {}. It {}. {}. {}".format(a, SL[
+        #     new_sl], SR[new_sr], SU[new_su], SW[new_sw], SC[new_sc])
+
+        return {
+            "SL": str(SL[state[0]]),
+            "SU": str(SU[state[1]]),
+            "SR": str(SR[state[2]]),
+            "SW": str(SW[state[3]]),
+            "SC": str(SC[state[4]]),
+            "last_action": str(self.last_action),
+            "last_reward": str(self.last_reward),
+            "total_reward": str(self.total_reward),
+            "step_number": str(self.step_number)
+
+        }
 
     def encode(self, sl, su, sr, sw, sc):
         # the state encode is just the binary representation of the state variable list from left to right
@@ -405,12 +438,14 @@ class CoffeeTaskEnv(Env):
 
     def step(self, a):
 
-        # s = [sl, su, sr, sw, sc]
-        SL = ["Office", "CoffeeShop"]
-        SU = ["Have not an umbrella", "has a umbrella"]
-        SR = ["It is NOT raining", "It IS raining"]
-        SW = ["It is NOT wet", "It IS wet"]
-        SC = ["It is the robot NOT holding a coffee", "It IS the robot holding a coffee"]
+        if a == 1000:
+            self.info = self._get_info()
+
+            if self.render_mode == "human":
+                self._render_gui()
+
+            return int(self.s), 0, False, False, {"prob": 1, "description": self.info}
+
 
         # First we decode current state
         sl, su, sr, sw, sc = self.decode(self.s)
@@ -538,15 +573,16 @@ class CoffeeTaskEnv(Env):
 
         self.s = s
         self.last_action = a
+        self.last_reward = reward
+        self.total_reward += self.last_reward
+        self.step_number += 1
 
-        info = "The robot take the action {}. Now it is at {} and {}. It {}. {}. {}".format(self.actions[a], SL[
-            new_sl], SR[new_sr], SU[new_su], SW[new_sw], SC[new_sc])
+        self.info = self._get_info()
 
-        #print (info)
         if self.render_mode == "human":
-            self._render_gui(info)
+            self._render_gui()
 
-        return int(s), reward, done, False, {"prob": 1, "description": info}
+        return int(s), reward, done, False, {"prob": 1, "description": self.info}
 
     def random_initial_states(self, episodes):
         resp = []
@@ -554,7 +590,7 @@ class CoffeeTaskEnv(Env):
             resp.append(categorical_sample(self.initial_state_distrib, self.np_random))
         return resp
 
-    def reset(self, *, seed: Optional[int] = None, return_info: bool = False, options: Optional[dict] = None):
+    def reset(self, *, seed: Optional[int] = None, return_info: bool = True, options: Optional[dict] = None):
 
         super().reset(seed=seed)
 
@@ -563,11 +599,19 @@ class CoffeeTaskEnv(Env):
             self.s = self.encode(int(binary[0]), int(binary[1]), int(binary[2]), int(binary[3]), int(binary[4]))
         else:
             self.s = categorical_sample(self.initial_state_distrib, self.np_random)
-            self.last_action = None
-            self.taxi_orientation = 0
+
+        # Re-set all the important variables
+        self.taxi_orientation = 0
+        self.info = {}
+        self.last_action = None
+        self.last_reward = 0
+        self.total_reward = 0
+        self.step_number = 0
+
+        self.info = self._get_info()
 
         if self.render_mode == "human":
-            self._render_gui({})
+            self._render_gui()
 
         if not return_info:
             return (int(self.s),{})
@@ -578,9 +622,9 @@ class CoffeeTaskEnv(Env):
         if self.render_mode == "ansi":
             return self._render_text()
         else:
-            return self._render_gui(info)
+            return self._render_gui()
 
-    def _render_gui(self, info):
+    def _render_gui(self):
 
         sl, su, sr, sw, sc = self.decode(self.s)
 
@@ -596,11 +640,11 @@ class CoffeeTaskEnv(Env):
             pygame.display.set_caption("Coffee Task")
             if self.render_mode == "human":
                 self.window = pygame.display.set_mode(WINDOW_SIZE)
+
             else:  # "rgb_array"
                 self.window = pygame.Surface(WINDOW_SIZE)
 
-        if info is not None:
-            # pygame.display.set_caption("Coffee Task. Episode: " + info['episode_number'] + " Steps: " + info['step_number'] + " Episode reward: " + info['reward'])
+        if self.info is not None:
             pygame.display.set_caption("Coffee Task")
 
         if self.clock is None:
@@ -719,6 +763,35 @@ class CoffeeTaskEnv(Env):
                 self.destination_img,
                 (dest_loc[0], dest_loc[1] - self.cell_size[1] // 2),
             )
+        info_canvas = pygame.Surface((250, 280))
+        info_canvas.fill((200, 200, 200))
+        # Render legend
+        font = pygame.font.SysFont(None, 24)
+        x_pos = 10
+        y_pos = 10
+        line_height = 30
+        text_color = (0, 0, 0)
+
+        # Display variable names and values on the legend
+        variables = {
+            'Steps': self.info['step_number'],
+            'Location (SL)': self.info['SL'],
+            'Umbrella (SU)': self.info['SU'],
+            'Raining (SR)': self.info['SR'],
+            'Wet (SW)': self.info['SW'],
+            'Robot has coffee (SC)': self.info['SC'],
+            'Last action': self.info['last_action'],
+            'Step reward': self.info['last_reward'],
+            'Total reward': self.info['total_reward']
+        }
+
+        for label, value in variables.items():
+            text_variable = font.render(f"{label}: {value}", True, text_color)
+            info_canvas.blit(text_variable, (x_pos, y_pos))
+            y_pos += line_height
+
+        # Combine main canvas and legend on the screen
+        self.window.blit(info_canvas, (500, 100))
 
         if self.render_mode == "human":
             pygame.display.update()
