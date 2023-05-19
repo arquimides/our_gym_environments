@@ -126,12 +126,15 @@ class TaxiBigEnv(Env):
     * v0: Initial versions release
     """
 
-    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 64}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"]}
 
-    def __init__(self, env_type="stochastic", render_fps = 64):
+    def __init__(self, render_mode=None, env_type="stochastic", render_fps=4):
 
+        assert env_type == "stochastic" or env_type in self.metadata["environment_type"]
         self.env_type = env_type
-        self.metadata["render_fps"] = render_fps
+        assert render_mode is None or render_mode in self.metadata["render_modes"]
+        self.render_mode = render_mode
+        self.render_fps = render_fps
 
         self.desc = np.asarray(MAP, dtype="c")
 
@@ -339,11 +342,19 @@ class TaxiBigEnv(Env):
         return reversed(out)
 
     def step(self, a):
+
+        if a < 0 or a > 5:
+            return self.s, 0 , False, False,{"prob": 1}
+
         transitions = self.P[self.s][a]
         i = categorical_sample([t[0] for t in transitions], self.np_random)
         p, s, r, d = transitions[i]
         self.s = s
         self.last_action = a
+
+        if self.render_mode == "human":
+            self._render_gui({})
+
         # TODO Sustitute the False for Truncated value
         return int(s), r, d, False, {"prob": p}
 
@@ -416,13 +427,13 @@ class TaxiBigEnv(Env):
         else:
             return (int(self.s), {"prob": 1})
 
-    def render(self, mode="human", info = {}):
-        if mode == "ansi":
+    def render(self, info = {}):
+        if self.render_mode == "ansi":
             return self._render_text()
         else:
-            return self._render_gui(mode, info)
+            return self._render_gui( info)
 
-    def _render_gui(self, mode, info):
+    def _render_gui(self, info):
         try:
             import pygame  # dependency to pygame only if rendering with human
         except ImportError:
@@ -433,13 +444,14 @@ class TaxiBigEnv(Env):
         if self.window is None:
             pygame.init()
             pygame.display.set_caption("TaxiBig")
-            if mode == "human":
+            if self.render_mode == "human":
                 self.window = pygame.display.set_mode(WINDOW_SIZE)
             else:  # "rgb_array"
                 self.window = pygame.Surface(WINDOW_SIZE)
 
         if info is not None:
-            pygame.display.set_caption("TaxiBig. Episode: " + info['episode_number'] + " Steps: " + info['step_number'] + " Episode reward: " + info['reward'])
+            # pygame.display.set_caption("TaxiBig. Episode: " + info['episode_number'] + " Steps: " + info['step_number'] + " Episode reward: " + info['reward'])
+            pygame.display.set_caption("TaxiBig")
 
         if self.clock is None:
             self.clock = pygame.time.Clock()
@@ -544,7 +556,7 @@ class TaxiBigEnv(Env):
                 (dest_loc[0], dest_loc[1] - self.cell_size[1] // 2),
             )
 
-        if mode == "human":
+        if self.render_mode == "human":
             pygame.display.update()
             self.clock.tick(self.metadata["render_fps"])
         else:  # rgb_array
