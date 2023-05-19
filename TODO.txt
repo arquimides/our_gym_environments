@@ -1,5 +1,2 @@
-- Change both taxis to gymnasium api
-- Test if we can add namespace 'our_gym_environments' before name in id without problem
-- Create a custom mapping for each environment and test it on play mode
-- See if we can pass info to the render method again
-- Edit the README.md with the instructions: references to the original envs, and references to our papers
+- Render the info in canvas for taxi tasks
+- Include s_t+1 variables in the step function, specially on reward in the coffee task
