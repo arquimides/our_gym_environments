@@ -99,12 +99,14 @@ class CoffeeTaskEnv(Env):
     * v0: Initial versions release
     """
 
-    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 4, "environment_type": ["stochastic", "deterministic"]}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 4, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
 
-    def __init__(self, render_mode=None, env_type="stochastic", render_fps=4):
+    def __init__(self, render_mode=None, env_type="stochastic", reward_type = "original", render_fps=4):
 
         assert env_type == "stochastic" or env_type in self.metadata["environment_type"]
         self.env_type = env_type
+        assert reward_type == "stochastic" or env_type in self.metadata["environment_type"]
+        self.reward_type = reward_type
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
         self.render_fps = render_fps
@@ -117,7 +119,7 @@ class CoffeeTaskEnv(Env):
         # stochastic transition probabilities
         self.go_change_location_probability = 0.9
         self.go_get_wet_if_rain_and_not_umbrella_probability = 0.9
-        self.gu_ok_probability = 0.9
+        self.gu_ok_probability = 0.8
         self.bc_ok_probability = 0.8
         self.dc_user_have_and_robot_not_probability = 0.8
         self.dc_in_coffee_shop_probability = 0.9
@@ -359,16 +361,15 @@ class CoffeeTaskEnv(Env):
         self.median_vert = None
         self.background_img = None
 
-
     def _get_info(self):
 
         state = self.decode(self.s)
 
         SL = ["Office", "CoffeeShop"]
-        SU = ["YES", "NO"]
-        SR = ["YES", "NO"]
-        SW = ["YES", "NOT"]
-        SC = ["YES", "NOT"]
+        SU = ["NO", "YES"]
+        SR = ["NO", "YES"]
+        SW = ["NO", "YES"]
+        SC = ["NO", "YES"]
 
         # info = "The robot take the action {}. Now it is at {} and {}. It {}. {}. {}".format(a, SL[
         #     new_sl], SR[new_sr], SU[new_su], SW[new_sw], SC[new_sc])
@@ -401,7 +402,7 @@ class CoffeeTaskEnv(Env):
         return [int(binary[0]), int(binary[1]), int(binary[2]), int(binary[3]), int(binary[4])]
 
     def do_task(self, start_state, max_steps, value_function):
-        terminated = False
+
         self.reset(options={'state_index': start_state})
         steps = 0
         episode_reward = 0
@@ -446,7 +447,6 @@ class CoffeeTaskEnv(Env):
 
             return int(self.s), 0, False, False, {"prob": 1, "description": self.info}
 
-
         # First we decode current state
         sl, su, sr, sw, sc = self.decode(self.s)
 
@@ -471,23 +471,39 @@ class CoffeeTaskEnv(Env):
                         if su == 0 and sr == 1:
                             new_sw = 1
 
-            # Immediate reward for GO in case of deterministic environment. Just for cases reward != default value
+            # Immediate reward for GO. Just for cases reward != default value
 
-            # Esta esta muy sofisticada. If it is raining and the robot does not have umbrella an it is not wet and it is at home and dont have a coffe
-            # if sr == 1 and su == 0 and sw == 0 and sl == 0 and sc == 0:
-            #     reward = -1.0
-            # If the robot was at home and holding a coffee it dont need to go
-            if sl == 0 and sc == 1:
-                reward = self.reward_variable_values[4]
-            # If the robot was at coffee shop and not holding a coffee it dont need to go
-            elif sl == 1 and sc == 0:
-                reward = self.reward_variable_values[4]
-            # If robot was not holding a coffee and it was at home and now it is at the coffee shop, r = 0.05
-            elif sl == 0 and sc == 0:
-                reward = self.reward_variable_values[2]
-            # If robot was holding a coffee and it was at coffee shop and now it is at home, r = 0.05
-            elif sl == 1 and sc == 1:
-                reward = self.reward_variable_values[2]
+            # For reward depending only on current and action (r|st,st+1,a)
+            if self.reward_type == "original":
+                # Esta esta muy sofisticada. If it is raining and the robot does not have umbrella an it is not wet and it is at home and dont have a coffe
+                # if sr == 1 and su == 0 and sw == 0 and sl == 0 and sc == 0:
+                #     reward = -1.0
+                if sl == 0 and sc == 1:
+                    reward = self.reward_variable_values[4]
+                # If the robot was at coffee shop and not holding a coffee it dont need to go
+                elif sl == 1 and sc == 0:
+                    reward = self.reward_variable_values[4]
+                # If robot was not holding a coffee and it was at home and now it is at the coffee shop, r = 0.05
+                elif sl == 0 and sc == 0:
+                    reward = self.reward_variable_values[2]
+                # If robot was holding a coffee and it was at coffee shop and now it is at home, r = 0.05
+                elif sl == 1 and sc == 1:
+                    reward = self.reward_variable_values[2]
+
+            # For reward depending on current and next state and action (r|st,st+1,a)
+            elif self.reward_type == "new":
+                # If the robot was at home and holding a coffee it dont need to go
+                if sl == 0 and sc == 1 and new_sl == 1:
+                    reward = self.reward_variable_values[4]
+                # If the robot was at coffee shop and not holding a coffee it dont need to go
+                elif sl == 1 and sc == 0 and new_sl == 1:
+                    reward = self.reward_variable_values[4]
+                # If robot was not holding a coffee and it was at home and now it is at the coffee shop, r = 0.05
+                elif sl == 0 and sc == 0 and new_sl == 1:
+                    reward = self.reward_variable_values[2]
+                # If robot was holding a coffee and it was at coffee shop and now it is at home, r = 0.05
+                elif sl == 1 and sc == 1 and new_sl == 0:
+                    reward = self.reward_variable_values[2]
 
         elif a == 1:  # GU causing it to hold an umbrella if it is in the office
             if self.env_type == "deterministic":
@@ -500,12 +516,23 @@ class CoffeeTaskEnv(Env):
                         new_su = 1
 
             # Reward for GU.
-            # If robot is at home, not wearing and umbrella, and it is raining, r = 0.05
-            if sl == 0 and su == 0 and sr == 1:
-                reward = self.reward_variable_values[2]
-            # If robot already has the umbrella or it is at coffee shop
-            elif su == 1 or sl == 1:
-                reward = self.reward_variable_values[4]
+            # For reward depending only on current and action (r|st,st+1,a)
+            if self.reward_type == "original":
+                # If robot is at home, not wearing and umbrella, and it is raining, r = 0.05
+                if sl == 0 and su == 0 and sr == 1:
+                    reward = self.reward_variable_values[2]
+                # If robot already has the umbrella or it is at coffee shop
+                elif su == 1 or sl == 1:
+                    reward = self.reward_variable_values[4]
+
+            # For reward depending on current and next state and action (r|st,st+1,a)
+            elif self.reward_type == "new":
+                # If robot is at home, not wearing and umbrella, and it is raining, r = 0.05
+                if sl == 0 and su == 0 and sr == 1 and new_su == 1:
+                    reward = self.reward_variable_values[2]
+                # If robot already has the umbrella or it is at coffee shop
+                elif su == 1 or sl == 1:
+                    reward = self.reward_variable_values[4]
 
         elif a == 2:  # BC causing it to hold coffee if it is in the coffee shop
             if self.env_type == "deterministic":
@@ -518,24 +545,38 @@ class CoffeeTaskEnv(Env):
                         new_sc = 1
 
             # # Reward for BC.
-            # If robot was not holding a coffee and it was at coffee shop, r = 0.1
-            if sl == 1 and sc == 0:
-                reward = self.reward_variable_values[2]
-            # Or if the robot already has a coffee
-            elif sc == 1:
-                reward = self.reward_variable_values[4]
+            # For reward depending only on current and action (r|st,st+1,a)
+            if self.reward_type == "original":
+                # If robot was not holding a coffee and it was at coffee shop, r = 0.1
+                if sl == 1 and sc == 0:
+                    reward = self.reward_variable_values[2]
+                # Or if the robot already has a coffee
+                elif sc == 1:
+                    reward = self.reward_variable_values[4]
+
+            # For reward depending on current and next state and action (r|st,st+1,a)
+            elif self.reward_type == "new":
+                # If robot was not holding a coffee and it was at coffee shop, r = 0.1
+                if sl == 1 and sc == 0 and new_sc == 1:
+                    reward = self.reward_variable_values[2]
+                # Or if the robot already has a coffee
+                elif sc == 1:
+                    reward = self.reward_variable_values[4]
 
         elif a == 3:  # DC causing the user to hold coffee and the robot to not hold a coffee if the robot has coffee and is in the office
+
             if self.env_type == "deterministic":
                 new_sc = 0  # and the robot has not
                 if sc == 1 and sl == 0:
                     done = True
+
             elif self.env_type == "stochastic":
                 prob = np.random.uniform()
 
                 if sc == 1 and sl == 0:
                     if prob < self.dc_user_have_and_robot_not_probability:
                         new_sc = 0  # and the robot has not
+                        done = True
 
                     elif self.dc_user_have_and_robot_not_probability <= prob < 0.9:  # the robot just dropped the coffee
                         new_sc = 0
@@ -544,30 +585,42 @@ class CoffeeTaskEnv(Env):
                     if prob < self.dc_in_coffee_shop_probability:
                         new_sc = 0
 
-            # Obtaining reward for DC for Deterministic case
-            # The robot gets a reward of 0.9 whenever the user has coffee plus a reward of 0.1 whenever it is dry
-            if sl == 0 and sc == 1 and sw == 0:
-                reward = self.reward_variable_values[0]
-                done = True
-            elif sl == 0 and sc == 1 and sw == 1:
-                reward = self.reward_variable_values[1]
-                done = True
-            # Get a penalty for deliver the coffee at wrong place
-            elif sl == 1 and sc == 1:
-                reward = self.reward_variable_values[4]
+            # Obtaining reward for DC
+
+            # For reward depending only on current and action (r|st,st+1,a)
+            if self.reward_type == "original":
+                # The robot gets a reward of 0.9 whenever the user has coffee plus a reward of 0.1 whenever it is dry
+                if sl == 0 and sc == 1 and sw == 0:
+                    reward = self.reward_variable_values[0]
+                elif sl == 0 and sc == 1 and sw == 1:
+                    reward = self.reward_variable_values[1]
+                # Get a penalty for deliver the coffee at wrong place
+                elif sl == 1 and sc == 1:
+                    reward = self.reward_variable_values[4]
+
+            # For reward depending on current and next state and action (r|st,st+1,a)
+            elif self.reward_type == "new":
+                # The robot gets a reward of 0.9 whenever the user has coffee plus a reward of 0.1 whenever it is dry
+                if sl == 0 and sc == 1 and sw == 0 and new_sc == 0:
+                    reward = self.reward_variable_values[0]
+                elif sl == 0 and sc == 1 and sw == 1 and new_sc == 1:
+                    reward = self.reward_variable_values[1]
+                # Get a penalty for deliver the coffee at wrong place
+                elif sl == 1 and sc == 1 and new_sc == 0:
+                    reward = self.reward_variable_values[4]
 
         #if self.env_type == "stochastic":
-        # # Eventually it is raining
-        # if sr:
-        #     # if so, it can continue for next step or just stop raining at any time or at max_rain
-        #     self.rain_time = self.rain_time + 1
-        #     if np.random.uniform() < self.rain_stop_probability or self.rain_time == self.max_rain:
-        #         new_sr = 0
-        #         self.rain_time = 0
-        # else:
-        #     # if not raining there is a probability to start to rain in next episode
-        #     if np.random.uniform() < self.rain_probability:
-        #         new_sr = 1
+        # Eventually it is raining
+        if sr:
+            # If so, it can continue for next step or just stop raining at any time or at max_rain
+            self.rain_time = self.rain_time + 1
+            if np.random.uniform() < self.rain_stop_probability or self.rain_time == self.max_rain:
+                new_sr = 0
+                self.rain_time = 0
+        else:
+            # if not raining there is a probability to start to rain in next episode
+            if np.random.uniform() < self.rain_probability:
+                new_sr = 1
 
         s = self.encode(new_sl, new_su, new_sr, new_sw, new_sc)
 
@@ -579,8 +632,7 @@ class CoffeeTaskEnv(Env):
 
         self.info = self._get_info()
 
-        if self.render_mode == "human":
-            self._render_gui()
+        self.render()
 
         return int(s), reward, done, False, {"prob": 1, "description": self.info}
 
@@ -610,15 +662,14 @@ class CoffeeTaskEnv(Env):
 
         self.info = self._get_info()
 
-        if self.render_mode == "human":
-            self._render_gui()
+        self.render()
 
         if not return_info:
             return (int(self.s),{})
         else:
             return (int(self.s), {"prob": 1})
 
-    def render(self, info = {}):
+    def render(self):
         if self.render_mode == "ansi":
             return self._render_text()
         else:
