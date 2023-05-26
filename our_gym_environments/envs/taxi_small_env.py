@@ -104,12 +104,14 @@ class TaxiSmallEnv(Env):
     * v0: Initial versions release
     """
 
-    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"]}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
 
-    def __init__(self, render_mode=None, env_type="stochastic", render_fps=4):
+    def __init__(self, render_mode=None, env_type="stochastic", reward_type = "original", render_fps=4):
 
         assert env_type == "stochastic" or env_type in self.metadata["environment_type"]
         self.env_type = env_type
+        assert reward_type == "stochastic" or env_type in self.metadata["environment_type"]
+        self.reward_type = reward_type
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
         self.render_fps = render_fps
@@ -120,18 +122,8 @@ class TaxiSmallEnv(Env):
         self.locs = locs = [(0, 0), (0, 4), (4, 0), (4, 3)]
         self.locs_colors = [(255, 0, 0), (0, 255, 0), (255, 255, 0), (0, 0, 255)]
 
-        # stochastic transition probabilities TODO Fill this values later
-        # self.go_change_location_probability = 0.9
-        # self.go_get_wet_if_rain_and_not_umbrella_probability = 0.9
-        # self.gu_ok_probability = 0.9
-        # self.bc_ok_probability = 0.8
-        # self.dc_user_have_and_robot_not_probability = 0.8
-        # self.dc_in_coffee_shop_probability = 0.9
-        # rain stuff
-        # self.rain_probability = 0.3
-        # self.rain_stop_probability = 0.3
-        # self.max_rain = 25
-        # self.rain_time = 0
+        # stochastic transition success probabilities
+        self.trans_probs = {"south": 0.9, "north": 0.9, "east": 0.9, "west": 0.9, "pick": 0.8, "drop": 0.8}
 
         self.num_rows = 5
         self.num_columns = 5
@@ -199,9 +191,9 @@ class TaxiSmallEnv(Env):
                                     # reward = 1 #TODO This is critical.
                                 else:  # the taxi is not at pass location or the passenger is already in the taxi
                                     reward = self.reward_variable_values[2]
-                            elif action == 5:  # dropoff
+                            elif action == 5:  # drop-off
 
-                                # First assume dropoff at wrong location
+                                # First assume drop-off at wrong location
                                 reward = self.reward_variable_values[2]
 
                                 if (taxi_loc == locs[dest_idx]) and pass_idx == 4:
@@ -225,11 +217,23 @@ class TaxiSmallEnv(Env):
                             new_state = self.encode(
                                 new_row, new_col, new_pass_idx, dest_idx
                             )
-                            self.P[state][action].append((1.0, new_state, reward, done))
+
+                            if env_type == "deterministic":
+                                self.P[state][action].append((1.0, new_state, reward, done))
+                            elif env_type == "stochastic":
+                                self.P[state][action].append((self.trans_probs[self.actions[action]], new_state, reward, done))
+                                self.P[state][action].append((1 - self.trans_probs[self.actions[action]], state, self.reward_variable_values[1], False))
+
         self.initial_state_distrib /= self.initial_state_distrib.sum()
 
         self.action_space = spaces.Discrete(self.num_actions)
         self.observation_space = spaces.Discrete(self.num_states)
+
+        self.info = None
+        self.last_action = None
+        self.last_reward = 0
+        self.total_reward = 0
+        self.step_number = 0
 
         # pygame utils
         self.window = None
@@ -246,14 +250,34 @@ class TaxiSmallEnv(Env):
         self.median_vert = None
         self.background_img = None
 
+    def _get_info(self):
+
+        state = self.convert_to_relational(self.decode(self.s))
+
+        WP = ["NO", "YES"]
+        L = ["On the road", "On origin", "On destination"]
+        NW = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]
+
+        return {
+            "WP": str(WP[state[0]]),
+            "L": str(L[state[1]]),
+            "NW": str(NW[state[2]]),
+            "last_action": str(self.last_action),
+            "last_reward": str(self.last_reward),
+            "total_reward": str(self.total_reward),
+            "step_number": str(self.step_number)
+        }
+
+
     def init_relational_states(self):
         state_list = []
         relational_states = set()
         for state_number in range(self.num_states):
-            array_state = list(self.decode(state_number))
-            current_state = self.convert_to_relational(array_state)
-            state_list.append(current_state)
-            relational_states.add(tuple(current_state))
+            array_state = self.decode(state_number)
+            if array_state[2] != array_state[3]:
+                current_state = self.convert_to_relational(array_state)
+                state_list.append(current_state)
+                relational_states.add(tuple(current_state))
         return state_list, relational_states
 
     def convert_to_relational(self, array_state):
@@ -293,7 +317,7 @@ class TaxiSmallEnv(Env):
         except:
             index = -1
 
-        if index == self.origin:
+        if index == pass_loc:
             l = 1
         elif index == destination:
             l = 2
@@ -321,7 +345,7 @@ class TaxiSmallEnv(Env):
         i = i // 5
         out.append(i)
         assert 0 <= i < 5
-        return reversed(out)
+        return list(reversed(out))
 
     def step(self, a):
 
@@ -333,11 +357,15 @@ class TaxiSmallEnv(Env):
         p, s, r, d = transitions[i]
         self.s = s
         self.last_action = a
+        self.last_reward = r
+        self.total_reward += self.last_reward
+        self.step_number += 1
 
-        if self.render_mode == "human":
-            self._render_gui({})
+        self.info = self._get_info()
 
-        # TODO Sustitute the False for Truncated value
+        self.render()
+
+        # TODO Substitute the False for Truncated value
         return int(s), r, d, False, {"prob": p}
 
     def do_task(self, start_state, max_steps, value_function):
@@ -368,10 +396,9 @@ class TaxiSmallEnv(Env):
         L = ["On road", "On origin", "On destination"]
 
         # First we decode current state
-        wp, l = self.decode(self.s)
-
+        state_array = self.decode(self.s)
         # By default, the next state is a copy of the current state
-        new_wp, new_l = wp, l
+        # new_wp, new_l = wp, l
 
         reward = (
             -0.1  # default reward for most actions
@@ -397,25 +424,36 @@ class TaxiSmallEnv(Env):
             self.s = options['state_index'] % self.num_states
         else:
             self.s = categorical_sample(self.initial_state_distrib, self.np_random)
-        array_state = list(self.decode(self.s))
+
+        array_state = self.decode(self.s)
         self.origin = array_state[2]
         self.destination = array_state[3]
         self.states, self.relational_states = self.init_relational_states()
-        self.last_action = None
         self.taxi_orientation = 0
+        self.last_action = None
+        self.last_reward = 0
+        self.total_reward = 0
+        self.step_number = 0
+
+        self.info = self._get_info()
+
+        self.render()
 
         if not return_info:
             return (int(self.s), {})
         else:
             return (int(self.s), {"prob": 1})
 
-    def render(self, info={}):
+    def render(self):
         if self.render_mode == "ansi":
             return self._render_text()
         else:
-            return self._render_gui(info)
+            return self._render_gui()
 
-    def _render_gui(self, info):
+    def _render_gui(self):
+
+        state_array = self.decode(self.s)
+
         try:
             import pygame  # dependency to pygame only if rendering with human
         except ImportError:
@@ -431,13 +469,9 @@ class TaxiSmallEnv(Env):
             else:  # "rgb_array"
                 self.window = pygame.Surface(WINDOW_SIZE)
 
-        if info is not None:
-            # pygame.display.set_caption(
-            #     "TaxiSmall. Episode: " + info['episode_number'] + " Steps: " + info[
-            #         'step_number'] + " Episode reward: " +
-            #     info['reward'])
-            pygame.display.set_caption(
-                "TaxiSmall")
+        if self.info is not None:
+            pygame.display.set_caption("TaxiSmall")
+            #print(self.info)
 
         if self.clock is None:
             self.clock = pygame.time.Clock()
