@@ -1,2 +1,2 @@
 - Render the info in canvas for taxi tasks
-- Include s_t+1 variables in the step function, specially on reward in the coffee task
+- Definir una constante para las acciones NONE y para todas las acciones en general de cada ambiente para quitar el 1000
