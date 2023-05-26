@@ -5,7 +5,7 @@ from gymnasium.utils.play import PlayPlot, play
 import numpy as np
 
 env_ids = ["our_gym_environments/CoffeeTaskEnv-v0", "our_gym_environments/TaxiSmallEnv-v0", "our_gym_environments/TaxiBigEnv-v0"]
-selected_env = env_ids[0] # Change this value to select the environment you want to test
+selected_env = env_ids[1] # Change this value to select the environment you want to test
 
 mode = ["manual_play", "random_action"]
 selected_mode = mode[1] # Change this value to select the mode you want to test
@@ -17,7 +17,7 @@ mappings = {"our_gym_environments/CoffeeTaskEnv-v0": {(pygame.K_g,): 0, (pygame.
 
 if selected_mode == "manual_play":
 
-    env = gym.make(selected_env, render_mode="rgb_array", env_type = "deterministic", render_fps=1)
+    env = gym.make(selected_env, render_mode="rgb_array", env_type = "deterministic", reward_type = "new", render_fps=1)
 
     def callback(obs_t, obs_tp1, action, rew, terminated, truncated, info):
         return [rew, ]
@@ -27,7 +27,7 @@ if selected_mode == "manual_play":
     play(env, keys_to_action=mappings[selected_env], noop=1000, callback = callback)
 
 elif selected_mode == "random_action":
-    env = gym.make(selected_env, render_mode="human", env_type="stochastic", render_fps=64)
+    env = gym.make(selected_env, render_mode="human", env_type="stochastic", reward_type = "new", render_fps=64)
     observation, info = env.reset(options={'state_index': 0})
 
     for i in range(10000000):
