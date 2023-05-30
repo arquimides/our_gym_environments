@@ -126,7 +126,7 @@ class TaxiBigEnv(Env):
     * v0: Initial versions release
     """
 
-    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array", "none"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
 
     def __init__(self, render_mode=None, env_type="stochastic", reward_type = "original", render_fps=4):
 
@@ -472,8 +472,9 @@ class TaxiBigEnv(Env):
     def render(self):
         if self.render_mode == "ansi":
             return self._render_text()
-        else:
+        elif self.render_mode == "human" or self.render_mode == "rgb_array":
             return self._render_gui()
+        return
 
     def _render_gui(self):
 
