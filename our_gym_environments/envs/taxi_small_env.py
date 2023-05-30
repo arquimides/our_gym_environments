@@ -104,7 +104,7 @@ class TaxiSmallEnv(Env):
     * v0: Initial versions release
     """
 
-    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array", "none"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
 
     def __init__(self, render_mode=None, env_type="stochastic", reward_type = "original", render_fps=4):
 
@@ -150,8 +150,9 @@ class TaxiSmallEnv(Env):
         self.last_action = None
         self.destination = None
         self.origin = None
-        self.states = None
+        self.states = []
         self.relational_states = None
+        self.possible_states = []
 
         self.P = {
             state: {action: [] for action in range(self.num_actions)}
@@ -162,8 +163,9 @@ class TaxiSmallEnv(Env):
                 for pass_idx in range(len(locs) + 1):  # +1 for being inside taxi
                     for dest_idx in range(len(locs)):
                         state = self.encode(row, col, pass_idx, dest_idx)
-                        if pass_idx < 4 and pass_idx != dest_idx:
+                        if pass_idx != dest_idx:
                             self.initial_state_distrib[state] += 1
+                            self.possible_states.append([row,col,pass_idx,dest_idx])
                         for action in range(self.num_actions):
                             # defaults
                             new_row, new_col, new_pass_idx = row, col, pass_idx
@@ -270,15 +272,14 @@ class TaxiSmallEnv(Env):
 
 
     def init_relational_states(self):
-        state_list = []
+        states_list = []
         relational_states = set()
         for state_number in range(self.num_states):
             array_state = self.decode(state_number)
-            if array_state[2] != array_state[3]:
-                current_state = self.convert_to_relational(array_state)
-                state_list.append(current_state)
-                relational_states.add(tuple(current_state))
-        return state_list, relational_states
+            current_state = self.convert_to_relational(array_state)
+            states_list.append(current_state)
+            relational_states.add(tuple(current_state))
+        return states_list, relational_states
 
     def convert_to_relational(self, array_state):
         wp = 0  # options are (0) without passenger (1) with passenger
@@ -291,7 +292,6 @@ class TaxiSmallEnv(Env):
         taxi_row = array_state[0]
         taxi_col = array_state[1]
         pass_loc = array_state[2]
-        destination = array_state[3]
 
         # Check for walls at the four cardinal points
         if self.desc[taxi_row + 2, 2 * taxi_col + 1] in [b"-", b"+", b"|"]:  # South self.desc[row, 2 * col + 1] == b"-"
@@ -317,9 +317,9 @@ class TaxiSmallEnv(Env):
         except:
             index = -1
 
-        if index == pass_loc:
+        if index == self.origin:
             l = 1
-        elif index == destination:
+        elif index == self.destination:
             l = 2
 
         return [wp, l, nw]
@@ -347,7 +347,7 @@ class TaxiSmallEnv(Env):
         assert 0 <= i < 5
         return list(reversed(out))
 
-    def step(self, a):
+    def step_original(self, a):
 
         if a < 0 or a > 5:
             return self.s, 0 , False, False,{"prob": 1}
@@ -368,25 +368,167 @@ class TaxiSmallEnv(Env):
         # TODO Substitute the False for Truncated value
         return int(s), r, d, False, {"prob": p}
 
+    def step(self, a):
+
+        if a == 1000:
+            self.info = self._get_info()
+
+            if self.render_mode == "human":
+                self._render_gui()
+
+            return int(self.s), 0, False, False, {"prob": 1, "description": self.info}
+
+        # First we decode current state
+        row, col, pass_idx, dest_idx = self.decode(self.s)
+
+        wp, l, nw = self.convert_to_relational([row, col, pass_idx, dest_idx])
+
+        # By default, the next state is a copy of the current state
+        new_row, new_col, new_pass_idx, new_dest_idx = row, col, pass_idx, dest_idx
+        reward = (
+            self.reward_variable_values[1]  # default reward for most actions
+        )
+        done = False
+
+        taxi_loc = (row, col)
+
+        prob = np.random.uniform()
+
+        if a == 0:  # South
+
+            if self.env_type == "deterministic":
+                if self.desc[row + 2, 2 * col + 1] not in [b"-", b"|", b"+"]:
+                    new_row = min(row + 1, self.max_row)
+            elif self.env_type == "stochastic":
+                if prob < self.trans_probs[self.actions[a]]:
+                    if self.desc[row + 2, 2 * col + 1] not in [b"-", b"|", b"+"]:
+                        new_row = min(row + 1, self.max_row)
+
+        elif a == 1:  # North
+
+            if self.env_type == "deterministic":
+                if self.desc[row, 2 * col + 1] not in [b"-", b"|", b"+"]:
+                    new_row = max(row - 1, 0)
+
+            elif self.env_type == "stochastic":
+                if prob < self.trans_probs[self.actions[a]]:
+                    if self.desc[row, 2 * col + 1] not in [b"-", b"|", b"+"]:
+                        new_row = max(row - 1, 0)
+
+        elif a == 2:  # East
+
+            if self.env_type == "deterministic":
+                if self.desc[1 + row, 2 * col + 2] not in [b"-", b"|", b"+"]:
+                    new_col = min(col + 1, self.max_col)
+
+            elif self.env_type == "stochastic":
+                if prob < self.trans_probs[self.actions[a]]:
+                    if self.desc[1 + row, 2 * col + 2] not in [b"-", b"|", b"+"]:
+                        new_col = min(col + 1, self.max_col)
+
+        elif a == 3:  # West
+
+            if self.env_type == "deterministic":
+                if self.desc[1 + row, 2 * col] not in [b"-", b"|", b"+"]:
+                    new_col = max(col - 1, 0)
+            elif self.env_type == "stochastic":
+                if prob < self.trans_probs[self.actions[a]]:
+                    if self.desc[1 + row, 2 * col] not in [b"-", b"|", b"+"]:
+                        new_col = max(col - 1, 0)
+
+        # Reward for move actions independent of reward_type
+        if 0 <= a <= 3 and (row, col) == (new_row, new_col):
+            reward = self.reward_variable_values[2]
+
+        elif a == 4:  # pickup
+
+            if self.env_type == "deterministic":
+                if pass_idx < 4 and taxi_loc == self.locs[pass_idx]:
+                    new_pass_idx = 4  # passenger is now in the taxi
+
+            elif self.env_type == "stochastic":
+                if prob < self.trans_probs[self.actions[a]]:
+                    if pass_idx < 4 and taxi_loc == self.locs[pass_idx]:
+                        new_pass_idx = 4  # passenger is now in the taxi
+
+            if self.reward_type == "original":
+                if wp == 1 or l != 1:
+                    reward = self.reward_variable_values[2]
+
+            elif self.reward_type == "new":
+                # calculate the next relational state
+                new_wp, new_l, new_nw = self.convert_to_relational([new_row, new_col, new_pass_idx, new_dest_idx])
+
+                if wp == 1 or l != 1:
+                    reward = self.reward_variable_values[2]
+
+        elif a == 5:  # drop-off
+
+            if self.env_type == "deterministic":
+                if (taxi_loc == self.locs[dest_idx]) and pass_idx == 4:
+                    new_pass_idx = dest_idx
+                    done = True
+                elif (taxi_loc in self.locs) and pass_idx == 4:
+                    new_pass_idx = self.locs.index(taxi_loc)
+
+            elif self.env_type == "stochastic":
+                if prob < self.trans_probs[self.actions[a]]:
+                    if (taxi_loc == self.locs[dest_idx]) and pass_idx == 4:
+                        new_pass_idx = dest_idx
+                        done = True
+                    elif (taxi_loc in self.locs) and pass_idx == 4:
+                        new_pass_idx = self.locs.index(taxi_loc)
+
+            if self.reward_type == "original":
+                if wp == 1 and l == 2:
+                    reward = self.reward_variable_values[0]
+
+                elif wp != 1 or l != 2:
+                    reward = self.reward_variable_values[2]
+
+            elif self.reward_type == "new":
+                # calculate the next relational state
+                new_wp, new_l, new_nw = self.convert_to_relational([new_row, new_col, new_pass_idx, new_dest_idx])
+
+                if wp == 1 and l == 2 and new_wp == 0:
+                    reward = self.reward_variable_values[0]
+                elif wp != 1 or l != 2:
+                    reward = self.reward_variable_values[2]
+
+        s = self.encode(new_row, new_col, new_pass_idx, new_dest_idx)
+
+        self.s = s
+        self.last_action = a
+        self.last_reward = reward
+        self.total_reward += self.last_reward
+        self.step_number += 1
+
+        self.info = self._get_info()
+
+        self.render()
+
+        return int(s), reward, done, False, {"prob": 1, "description": self.info}
+
+
     def do_task(self, start_state, max_steps, value_function):
-        terminated = False
-        self.reset(options={'state_index': start_state})
-        steps = 0
-        episode_reward = 0
-        while not terminated and steps < max_steps:
-            s = self.s  # Parsing the state to a given index
+            terminated = False
+            self.reset(options={'state_index': start_state})
+            steps = 0
+            episode_reward = 0
+            while not terminated and steps < max_steps:
+                s = self.s  # Parsing the state to a given index
 
-            # Take the best action on this state according to the value function
-            a = np.random.choice(np.where(value_function[s] == np.max(value_function[s]))[0])
-            # print(self.actions[a])
-            # Take action, observe outcome
-            # observation, reward, terminated, truncated, info = self.step(current_state, self.actions[a], environment_type)
-            observation, reward, terminated, truncated, info = self.step(a)
-            # current_state = next_state
-            episode_reward += reward
-            steps = steps + 1
+                # Take the best action on this state according to the value function
+                a = np.random.choice(np.where(value_function[s] == np.max(value_function[s]))[0])
+                # print(self.actions[a])
+                # Take action, observe outcome
+                # observation, reward, terminated, truncated, info = self.step(current_state, self.actions[a], environment_type)
+                observation, reward, terminated, truncated, info = self.step(a)
+                # current_state = next_state
+                episode_reward += reward
+                steps = steps + 1
 
-        return episode_reward, steps
+            return episode_reward, steps
 
     def step_relational(self, a):
 
@@ -411,6 +553,16 @@ class TaxiSmallEnv(Env):
             resp.append(categorical_sample(self.initial_state_distrib, self.np_random))
         return resp
 
+    def random_state_from_relational(self, relational_index):
+        s_candidates = []
+
+        relational_state = list(list(self.relational_states)[relational_index])
+
+        for state_number in self.states:
+            if self.states[state_number] == relational_state:
+                s_candidates.append(state_number)
+        return np.random.choice(s_candidates)
+
     def reset(
             self,
             *,
@@ -421,13 +573,21 @@ class TaxiSmallEnv(Env):
         super().reset(seed=seed)
 
         if options is not None:
-            self.s = options['state_index'] % self.num_states
+            if options['state_type'] == "original":
+                row, col, pass_idx, dest_idx = self.possible_states[options['state_index'] % len(self.possible_states)]
+                self.s = self.encode(row,col,pass_idx,dest_idx)
+            elif options['state_type'] == "relational":
+                self.s = self.random_state_from_relational(options['state_index'] % len(self.relational_states))
         else:
             self.s = categorical_sample(self.initial_state_distrib, self.np_random)
 
         array_state = self.decode(self.s)
         self.origin = array_state[2]
         self.destination = array_state[3]
+        if self.origin == 4: # if the passenger is already on the taxi we need to randomly place an origin position distinct of destination
+            all_options = list(range(4))
+            all_options.remove(self.destination)
+            self.origin = np.random.choice(all_options)
         self.states, self.relational_states = self.init_relational_states()
         self.taxi_orientation = 0
         self.last_action = None
@@ -447,8 +607,10 @@ class TaxiSmallEnv(Env):
     def render(self):
         if self.render_mode == "ansi":
             return self._render_text()
-        else:
+        elif self.render_mode == "human" or self.render_mode == "rgb_array":
             return self._render_gui()
+        return
+
 
     def _render_gui(self):
 
@@ -631,3 +793,5 @@ class TaxiSmallEnv(Env):
 
             pygame.display.quit()
             pygame.quit()
+
+
