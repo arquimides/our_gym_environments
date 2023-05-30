@@ -28,7 +28,7 @@ if selected_mode == "manual_play":
 
 elif selected_mode == "random_action":
     env = gym.make(selected_env, render_mode="human", env_type="stochastic", reward_type = "new", render_fps=64)
-    observation, info = env.reset(options={'state_index': 0})
+    observation, info = env.reset(options={'state_index': 0, 'state_type': "original"})
 
     for i in range(10000000):
         action = env.action_space.sample()  # agent policy that uses the observation and info
