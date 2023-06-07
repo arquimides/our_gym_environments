@@ -1,5 +1,3 @@
-- Revisar porque se correlaciona nwI con wpJ
-- Arreglar el reset en el taxi big y revisar otras diferencias con el taxismall y actualizar
 - Render the info in separate canvas for taxi tasks
 - Definir una constante para las acciones NONE y para todas las acciones en general de cada ambiente para quitar el 1000
 - Añadir informacion del total del pasos al ambiente de manera que pueda detectar la situacion de truncated cuando alcanze el numero maximo de pasos

@@ -123,7 +123,7 @@ class TaxiSmallEnv(Env):
         self.locs_colors = [(255, 0, 0), (0, 255, 0), (255, 255, 0), (0, 0, 255)]
 
         # stochastic transition success probabilities
-        self.trans_probs = {"south": 0.9, "north": 0.9, "east": 0.9, "west": 0.9, "pick": 0.8, "drop": 0.8}
+        self.trans_probs = {"south": 0.9, "north": 0.9, "east": 0.9, "west": 0.9, "pick": 0.9, "drop": 0.9}
 
         self.num_rows = 5
         self.num_columns = 5
@@ -457,7 +457,7 @@ class TaxiSmallEnv(Env):
 
             elif self.reward_type == "new":
                 # calculate the next relational state
-                new_wp, new_l, new_nw = self.convert_to_relational([new_row, new_col, new_pass_idx, new_dest_idx])
+                #new_wp, new_l, new_nw = self.convert_to_relational([new_row, new_col, new_pass_idx, new_dest_idx])
 
                 if wp == 1 or l != 1:
                     reward = self.reward_variable_values[2]
@@ -483,7 +483,7 @@ class TaxiSmallEnv(Env):
                 if wp == 1 and l == 2:
                     reward = self.reward_variable_values[0]
 
-                elif wp != 1 or l != 2:
+                elif wp != 1:
                     reward = self.reward_variable_values[2]
 
             elif self.reward_type == "new":
@@ -492,7 +492,7 @@ class TaxiSmallEnv(Env):
 
                 if wp == 1 and l == 2 and new_wp == 0:
                     reward = self.reward_variable_values[0]
-                elif wp != 1 or l != 2:
+                elif wp != 1:
                     reward = self.reward_variable_values[2]
 
         s = self.encode(new_row, new_col, new_pass_idx, new_dest_idx)

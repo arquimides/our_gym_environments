@@ -475,9 +475,7 @@ class CoffeeTaskEnv(Env):
 
             # For reward depending only on current and action (r|st,st+1,a)
             if self.reward_type == "original":
-                # Esta esta muy sofisticada. If it is raining and the robot does not have umbrella an it is not wet and it is at home and dont have a coffe
-                # if sr == 1 and su == 0 and sw == 0 and sl == 0 and sc == 0:
-                #     reward = -1.0
+                # If the robot was at home shop and holding a coffee it dont need to go
                 if sl == 0 and sc == 1:
                     reward = self.reward_variable_values[4]
                 # If the robot was at coffee shop and not holding a coffee it dont need to go
