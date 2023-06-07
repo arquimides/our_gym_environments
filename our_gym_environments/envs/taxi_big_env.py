@@ -145,7 +145,7 @@ class TaxiBigEnv(Env):
         self.locs_colors = [(255, 0, 0), (0, 255, 0), (255, 255, 0), (0, 0, 255), (0, 255, 255), (255, 0, 255)]
 
         # stochastic transition success probabilities
-        self.trans_probs = {"south": 0.9, "north": 0.9, "east": 0.9, "west": 0.9, "pick": 0.8, "drop": 0.8}
+        self.trans_probs = {"south": 0.9, "north": 0.9, "east": 0.9, "west": 0.9, "pick": 0.9, "drop": 0.9}
 
         self.num_rows = 10
         self.num_columns = 10
