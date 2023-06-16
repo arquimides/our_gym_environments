@@ -3,9 +3,11 @@ import our_gym_environments
 import pygame
 from gymnasium.utils.play import PlayPlot, play
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 env_ids = ["our_gym_environments/CoffeeTaskEnv-v0", "our_gym_environments/TaxiSmallEnv-v0", "our_gym_environments/TaxiBigEnv-v0"]
-selected_env = env_ids[1] # Change this value to select the environment you want to test
+selected_env = env_ids[0] # Change this value to select the environment you want to test
 
 mode = ["manual_play", "random_action"]
 selected_mode = mode[1] # Change this value to select the mode you want to test
