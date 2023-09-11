@@ -105,7 +105,7 @@ class CoffeeTaskEnv(Env):
 
         assert env_type == "stochastic" or env_type in self.metadata["environment_type"]
         self.env_type = env_type
-        assert reward_type == "stochastic" or env_type in self.metadata["environment_type"]
+        assert reward_type == "original" or reward_type in self.metadata["reward_type"]
         self.reward_type = reward_type
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
