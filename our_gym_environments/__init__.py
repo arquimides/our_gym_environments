@@ -12,6 +12,13 @@ register(
     nondeterministic=True,
 )
 
+# The new Taxi as Atari game
+register(
+    id="our_gym_environments/TaxiAtariSmallEnv-v0",
+    entry_point="our_gym_environments.envs:TaxiAtariSmallEnv",
+    nondeterministic=True,
+)
+
 register(
     id="our_gym_environments/TaxiBigEnv-v0",
     entry_point="our_gym_environments.envs:TaxiBigEnv",
