@@ -3,6 +3,8 @@ from io import StringIO
 from os import path
 from typing import Optional
 import numpy as np
+import os
+import cv2
 from gymnasium import Env, spaces, utils
 from gymnasium.envs.toy_text.utils import categorical_sample
 from gymnasium.error import DependencyNotInstalled
@@ -104,11 +106,11 @@ class TaxiAtariSmallEnv(Env):
     * v0: Initial versions release
     """
 
-    metadata = {"render_modes": ["human", "ansi", "rgb_array", "none"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array", "none", "preprocessed"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
 
-    def __init__(self, render_mode=None, env_type="stochastic", reward_type = "original", render_fps=4):
+    def __init__(self, render_mode=None, env_type="deterministic", reward_type = "original", render_fps=4):
 
-        assert env_type == "stochastic" or env_type in self.metadata["environment_type"]
+        assert env_type == "deterministic" or env_type in self.metadata["environment_type"]
         self.env_type = env_type
         assert reward_type == "original" or reward_type in self.metadata["reward_type"]
         self.reward_type = reward_type
@@ -136,6 +138,10 @@ class TaxiAtariSmallEnv(Env):
 
         self.initial_state_distrib = np.zeros(self.num_states)
 
+        # Atari related, after four crashed the taxi lose a live
+        self.max_lives = 15
+        self.lives = self.max_lives
+
         self.s = 0
         self.num_actions = 6
         self.actions = ["south", "north", "east", "west", "pick", "drop"]
@@ -144,7 +150,7 @@ class TaxiAtariSmallEnv(Env):
                                               15]  # The nw variable card is 15 because there is not posible to have wall in the 4 points. Ex: 1111
         self.reward_variable_name = ["reward"]
         self.reward_variable_categories = [0, 1, 2]  # 0 is good, 1 is normal, 2 is bad
-        self.reward_variable_values = [20, -1, -10]  # TODO see if we can use a dict instead
+        self.reward_variable_values = [20.0, -1.0, -10.0]  # TODO see if we can use a dict instead
         self.reward_variable_cardinality = 3  # 0-positive, 1-normal, 2-negative
 
         self.last_action = None
@@ -229,7 +235,14 @@ class TaxiAtariSmallEnv(Env):
         self.initial_state_distrib /= self.initial_state_distrib.sum()
 
         self.action_space = spaces.Discrete(self.num_actions)
-        self.observation_space = spaces.Discrete(self.num_states)
+
+        # I need to chage the original observation space from Integer to Image
+        #self.observation_space = spaces.Discrete(self.num_states)
+        # Define the observation space
+        self.observation_space = spaces.Box(low=0, high=255, shape=(350, 550, 3), dtype=np.uint8)
+
+        # if self.render_mode == "preprocessed":
+        #     self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)
 
         self.info = None
         self.last_action = None
@@ -251,6 +264,44 @@ class TaxiAtariSmallEnv(Env):
         self.median_horiz = None
         self.median_vert = None
         self.background_img = None
+        self.images_map = {}
+        self.maximum_episode_steps = 10000
+
+        # Precargar todas las imagenes procesadas que corresponden a cada esta para no tener que hacer render
+        self.images_dict = self.load_preprocessed_images()
+
+
+
+    def load_preprocessed_images(self):
+
+        images_dict = {}
+
+        # Get the directory path of the script containing this function
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Construct the full path to the image folder (relative to the script's location)
+        image_folder_path = os.path.join(script_dir, "env_images")
+
+        # List all files in the folder
+        image_files = os.listdir(image_folder_path)
+
+        for filename in image_files:
+            # Extract the state number from the filename (assuming filenames are in the format 'image_XXX.png')
+            try:
+                state_number = int(filename.split('_')[1].split('.')[0])
+            except (ValueError, IndexError):
+                print(f"Skipping file {filename} as it doesn't follow the expected naming convention.")
+                continue
+
+            # Load the image using OpenCV
+            image_path = os.path.join(image_folder_path, filename)
+            image = cv2.imread(image_path)
+
+            # Add the image to the dictionary
+            images_dict[state_number] = image
+
+        return images_dict
+
 
     def _get_info(self):
 
@@ -505,9 +556,15 @@ class TaxiAtariSmallEnv(Env):
 
         self.info = self._get_info()
 
-        self.render()
+        obs = self.render()
 
-        return int(s), reward, done, False, {"prob": 1, "description": self.info}
+        truncated = False
+        if self.step_number >= self.maximum_episode_steps:
+            truncated = True
+
+        # TODO cambiar este metodo para que devuela la observacion como una imagen en lugar del estado entero
+        # TODO tambien tengo que devolver el estado entero para poder extraer las variables relacionales
+        return obs, reward, done, truncated, {"prob": 1, "description": self.info, "interger_state": int(s), "lives": self.lives}
 
 
     def do_task(self, start_state, max_steps, value_function):
@@ -594,21 +651,24 @@ class TaxiAtariSmallEnv(Env):
         self.last_reward = 0
         self.total_reward = 0
         self.step_number = 0
+        self.lives = self.max_lives # Reset the lives counter
 
         self.info = self._get_info()
 
-        self.render()
+        obs = self.render()
 
         if not return_info:
-            return (int(self.s), {})
+            return (obs, {})
         else:
-            return (int(self.s), {"prob": 1})
+            return (obs, {"prob": 1, "integer_state": int(self.s)})
 
     def render(self):
         if self.render_mode == "ansi":
             return self._render_text()
-        elif self.render_mode == "human" or self.render_mode == "rgb_array":
+        elif self.render_mode in ["human", "rgb_array"]:
             return self._render_gui()
+        elif self.render_mode == "preprocessed":
+            return self.images_dict[self.s]
         return
 
 
