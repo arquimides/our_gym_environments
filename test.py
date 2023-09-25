@@ -4,13 +4,15 @@ import pygame
 from gymnasium.utils.play import PlayPlot, play
 import numpy as np
 import matplotlib.pyplot as plt
+import cv2
+import os
+cv2.ocl.setUseOpenCL(False)
 
+env_ids = ["our_gym_environments/CoffeeTaskEnv-v0", "our_gym_environments/TaxiSmallEnv-v0", "our_gym_environments/TaxiBigEnv-v0", "our_gym_environments/TaxiAtariSmallEnv-v0"]
+selected_env = env_ids[3] # Change this value to select the environment you want to test
 
-env_ids = ["our_gym_environments/CoffeeTaskEnv-v0", "our_gym_environments/TaxiSmallEnv-v0", "our_gym_environments/TaxiBigEnv-v0"]
-selected_env = env_ids[0] # Change this value to select the environment you want to test
-
-mode = ["manual_play", "random_action"]
-selected_mode = mode[1] # Change this value to select the mode you want to test
+mode = ["manual_play", "random_action", "image_generation"]
+selected_mode = mode[2] # Change this value to select the mode you want to test
 
 mappings = {"our_gym_environments/CoffeeTaskEnv-v0": {(pygame.K_g,): 0, (pygame.K_u,): 1, (pygame.K_b,): 2, (pygame.K_d,): 3},
             "our_gym_environments/TaxiSmallEnv-v0": {(pygame.K_DOWN,): 0, (pygame.K_UP,): 1, (pygame.K_RIGHT,): 2, (pygame.K_LEFT,): 3, (pygame.K_p,): 4, (pygame.K_d,): 5},
@@ -38,5 +40,36 @@ elif selected_mode == "random_action":
 
         if terminated or truncated:
             observation, info = env.reset()
+
+    env.close()
+
+elif selected_mode == "image_generation":
+    env = gym.make(selected_env, render_mode="rgb_array", env_type="deterministic", reward_type = "original", render_fps=64)
+
+    # Specify the folder where you want to save the image
+    save_folder = 'env_images'
+
+    for i in range(env.num_states):
+        observation, info = env.reset(options={'state_index': i, 'state_type': "original"}, return_info = True)
+        #image = cv2.cvtColor(observation, cv2.COLOR_RGB2BGR)
+        image = cv2.cvtColor(observation, cv2.COLOR_RGB2GRAY)
+        image = cv2.resize(image, (84,84), interpolation=cv2.INTER_LINEAR)
+
+        # Check if the folder exists, and create it if not
+        if not os.path.exists(save_folder):
+            os.makedirs(save_folder)
+
+        # Specify the image file name
+        image_filename = 'state_{}.png'.format(info['integer_state'])  # You can customize the file name
+
+        # Specify the complete path to save the image
+        save_path = os.path.join(save_folder, image_filename)
+
+        # Save the image to the specified folder
+        cv2.imwrite(save_path, image)
+
+        # Optionally, you can print the path where the image is saved
+        print("Image saved at:", save_path)
+
 
     env.close()
