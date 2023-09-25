@@ -761,7 +761,7 @@ class TaxiBigEnv(Env):
 
         if self.render_mode == "human":
             pygame.display.update()
-            self.clock.tick(self.metadata["render_fps"])
+            self.clock.tick(self.render_fps)
         else:  # rgb_array
             return np.transpose(
                 np.array(pygame.surfarray.pixels3d(self.window)), axes=(1, 0, 2)
