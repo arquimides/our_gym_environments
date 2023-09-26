@@ -265,7 +265,7 @@ class TaxiAtariSmallEnv(Env):
         self.median_vert = None
         self.background_img = None
         self.images_map = {}
-        self.maximum_episode_steps = 10000
+        self.maximum_episode_steps = 1000
 
         # Precargar todas las imagenes procesadas que corresponden a cada esta para no tener que hacer render
         self.images_dict = self.load_preprocessed_images()
