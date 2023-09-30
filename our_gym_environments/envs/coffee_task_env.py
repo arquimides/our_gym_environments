@@ -16,7 +16,7 @@ MAP = [
     "| : : :Y:B|",
     "+---------+",
 ]
-WINDOW_SIZE = (800, 600)
+WINDOW_SIZE = (550, 350)
 
 
 class CoffeeTaskEnv(Env):
@@ -105,7 +105,7 @@ class CoffeeTaskEnv(Env):
 
         assert env_type == "stochastic" or env_type in self.metadata["environment_type"]
         self.env_type = env_type
-        assert reward_type == "stochastic" or env_type in self.metadata["environment_type"]
+        assert reward_type == "original" or reward_type in self.metadata["reward_type"]
         self.reward_type = reward_type
         assert render_mode is None or render_mode in self.metadata["render_modes"]
         self.render_mode = render_mode
@@ -475,9 +475,7 @@ class CoffeeTaskEnv(Env):
 
             # For reward depending only on current and action (r|st,st+1,a)
             if self.reward_type == "original":
-                # Esta esta muy sofisticada. If it is raining and the robot does not have umbrella an it is not wet and it is at home and dont have a coffe
-                # if sr == 1 and su == 0 and sw == 0 and sl == 0 and sc == 0:
-                #     reward = -1.0
+                # If the robot was at home shop and holding a coffee it dont need to go
                 if sl == 0 and sc == 1:
                     reward = self.reward_variable_values[4]
                 # If the robot was at coffee shop and not holding a coffee it dont need to go
@@ -815,13 +813,13 @@ class CoffeeTaskEnv(Env):
                 self.destination_img,
                 (dest_loc[0], dest_loc[1] - self.cell_size[1] // 2),
             )
-        info_canvas = pygame.Surface((250, 280))
+        info_canvas = pygame.Surface((155, 145))
         info_canvas.fill((200, 200, 200))
         # Render legend
-        font = pygame.font.SysFont(None, 24)
-        x_pos = 10
-        y_pos = 10
-        line_height = 30
+        font = pygame.font.SysFont(None, 16)
+        x_pos = 5
+        y_pos = 5
+        line_height = 14
         text_color = (0, 0, 0)
 
         # Display variable names and values on the legend
@@ -832,6 +830,7 @@ class CoffeeTaskEnv(Env):
             'Raining (SR)': self.info['SR'],
             'Wet (SW)': self.info['SW'],
             'Robot has coffee (SC)': self.info['SC'],
+            'User has coffee (SU)': "NO",
             'Last action': self.info['last_action'],
             'Step reward': self.info['last_reward'],
             'Total reward': self.info['total_reward']
@@ -843,7 +842,7 @@ class CoffeeTaskEnv(Env):
             y_pos += line_height
 
         # Combine main canvas and legend on the screen
-        self.window.blit(info_canvas, (500, 100))
+        self.window.blit(info_canvas, (345, 50))
 
         if self.render_mode == "human":
             pygame.display.update()
