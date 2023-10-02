@@ -9,6 +9,7 @@ import os
 cv2.ocl.setUseOpenCL(False)
 
 env_ids = ["our_gym_environments/CoffeeTaskEnv-v0", "our_gym_environments/TaxiSmallEnv-v0", "our_gym_environments/TaxiBigEnv-v0", "our_gym_environments/TaxiAtariSmallEnv-v0"]
+print("HOla")
 selected_env = env_ids[3] # Change this value to select the environment you want to test
 
 mode = ["manual_play", "random_action", "image_generation"]
@@ -51,9 +52,13 @@ elif selected_mode == "image_generation":
 
     for i in range(env.num_states):
         observation, info = env.reset(options={'state_index': i, 'state_type': "original"}, return_info = True)
-        #image = cv2.cvtColor(observation, cv2.COLOR_RGB2BGR)
-        image = cv2.cvtColor(observation, cv2.COLOR_RGB2GRAY)
-        image = cv2.resize(image, (84,84), interpolation=cv2.INTER_LINEAR)
+
+        # Resize the image to 84,84
+        image = cv2.resize(observation, (84, 84), interpolation=cv2.INTER_LINEAR)
+        # Convert to grayscale
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        # Add a channel dimension to make it (84, 84, 1)
+        image = np.expand_dims(image, axis=-1)
 
         # Check if the folder exists, and create it if not
         if not os.path.exists(save_folder):

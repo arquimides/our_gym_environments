@@ -239,10 +239,10 @@ class TaxiAtariSmallEnv(Env):
         # I need to chage the original observation space from Integer to Image
         #self.observation_space = spaces.Discrete(self.num_states)
         # Define the observation space
-        self.observation_space = spaces.Box(low=0, high=255, shape=(350, 550, 3), dtype=np.uint8)
+        # self.observation_space = spaces.Box(low=0, high=255, shape=(350, 550, 3), dtype=np.uint8)
 
         # if self.render_mode == "preprocessed":
-        #     self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84, 1), dtype=np.uint8)
+        self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84), dtype=np.uint8)
 
         self.info = None
         self.last_action = None
@@ -295,7 +295,9 @@ class TaxiAtariSmallEnv(Env):
 
             # Load the image using OpenCV
             image_path = os.path.join(image_folder_path, filename)
-            image = cv2.imread(image_path)
+            image = cv2.imread(image_path,cv2.IMREAD_GRAYSCALE)
+            # Add a channel dimension to make it (84, 84, 1)
+            #image = np.expand_dims(image, axis=-1)
 
             # Add the image to the dictionary
             images_dict[state_number] = image
