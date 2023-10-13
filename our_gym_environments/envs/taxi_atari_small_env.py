@@ -106,7 +106,7 @@ class TaxiAtariSmallEnv(Env):
     * v0: Initial versions release
     """
 
-    metadata = {"render_modes": ["human", "ansi", "rgb_array", "none", "preprocessed"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array", "none", "preloaded_color", "preprocessed"], "render_fps": 64, "environment_type": ["stochastic", "deterministic"], "reward_type": ["original", "new"]}
 
     def __init__(self, render_mode=None, env_type="deterministic", reward_type = "original", render_fps=4):
 
@@ -236,13 +236,11 @@ class TaxiAtariSmallEnv(Env):
 
         self.action_space = spaces.Discrete(self.num_actions)
 
-        # I need to chage the original observation space from Integer to Image
-        #self.observation_space = spaces.Discrete(self.num_states)
-        # Define the observation space
-        # self.observation_space = spaces.Box(low=0, high=255, shape=(350, 550, 3), dtype=np.uint8)
-
-        # if self.render_mode == "preprocessed":
-        self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84), dtype=np.uint8)
+        # This is the default observation space for both Human, rgb_array and preloaded_color
+        self.observation_space = spaces.Box(low=0, high=255, shape=(350, 550, 3), dtype=np.uint8)
+        # If the render_mode is preprocessed we need to change the original observation space
+        if self.render_mode == "preprocessed":
+            self.observation_space = spaces.Box(low=0, high=255, shape=(84, 84), dtype=np.uint8)
 
         self.info = None
         self.last_action = None
@@ -268,19 +266,21 @@ class TaxiAtariSmallEnv(Env):
         self.maximum_episode_steps = 1000
 
         # Precargar todas las imagenes procesadas que corresponden a cada esta para no tener que hacer render
-        self.images_dict = self.load_preprocessed_images()
+        if self.render_mode in ["preloaded_color", "preprocessed"]:
+            self.images_dict = self.load_preprocessed_images(self.render_mode)
 
 
 
-    def load_preprocessed_images(self):
+    def load_preprocessed_images(self, mode):
 
         images_dict = {}
 
         # Get the directory path of the script containing this function
         script_dir = os.path.dirname(os.path.abspath(__file__))
 
+        folder_name = "env_images_color" if mode == "preloaded_color" else "env_images"
         # Construct the full path to the image folder (relative to the script's location)
-        image_folder_path = os.path.join(script_dir, "env_images")
+        image_folder_path = os.path.join(script_dir, folder_name)
 
         # List all files in the folder
         image_files = os.listdir(image_folder_path)
@@ -295,9 +295,13 @@ class TaxiAtariSmallEnv(Env):
 
             # Load the image using OpenCV
             image_path = os.path.join(image_folder_path, filename)
-            image = cv2.imread(image_path,cv2.IMREAD_GRAYSCALE)
-            # Add a channel dimension to make it (84, 84, 1)
-            #image = np.expand_dims(image, axis=-1)
+
+            if mode == "preloaded_color":
+                image = cv2.imread(image_path)
+            elif mode == "preprocessed":
+                image = cv2.imread(image_path, cv2.COLOR_BGR2GRAY)
+                # Add a channel dimension to make it (84, 84, 1)
+                #image = np.expand_dims(image, axis=-1)
 
             # Add the image to the dictionary
             images_dict[state_number] = image
@@ -669,7 +673,7 @@ class TaxiAtariSmallEnv(Env):
             return self._render_text()
         elif self.render_mode in ["human", "rgb_array"]:
             return self._render_gui()
-        elif self.render_mode == "preprocessed":
+        elif self.render_mode in ["preloaded_color", "preprocessed"]:
             return self.images_dict[self.s]
         return
 
