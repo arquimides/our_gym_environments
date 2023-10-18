@@ -645,7 +645,6 @@ class TaxiAtariSmallEnv(Env):
             if options['state_type'] == "original":
                 row, col, pass_idx, dest_idx = self.possible_initial_states[options['state_index'] % len(self.possible_initial_states)]
                 self.s = self.encode(row,col,pass_idx,dest_idx)
-                self.s = options['state_index']
             elif options['state_type'] == "relational":
                 self.s = self.random_state_from_relational(options['state_index'] % len(self.relational_states))
         else:
