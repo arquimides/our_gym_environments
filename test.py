@@ -9,7 +9,6 @@ import os
 cv2.ocl.setUseOpenCL(False)
 
 env_ids = ["our_gym_environments/CoffeeTaskEnv-v0", "our_gym_environments/TaxiSmallEnv-v0", "our_gym_environments/TaxiBigEnv-v0", "our_gym_environments/TaxiAtariSmallEnv-v0"]
-print("HOla")
 selected_env = env_ids[3] # Change this value to select the environment you want to test
 
 mode = ["manual_play", "random_action", "image_generation"]
@@ -32,13 +31,13 @@ if selected_mode == "manual_play":
     play(env, keys_to_action=mappings[selected_env], noop=1000, callback = callback)
 
 elif selected_mode == "random_action":
-    env = gym.make(selected_env, render_mode="preloaded_color", env_type="deterministic", reward_type = "original", render_fps=64)
-    observation, info = env.reset(options={'state_index': 10, 'state_type': "original"})
+    env = gym.make(selected_env, render_mode="preloaded_color", env_type="stochastic", reward_type = "new", render_fps=64)
+    observation, info = env.reset(options={'state_index': 97, 'state_type': "original"})
     save_folder = 'random_action_test'
     for i in range(10000000):
 
         action = env.action_space.sample()  # agent policy that uses the observation and info
-
+        action = 5
         # Check if the folder exists, and create it if not
         if not os.path.exists(save_folder):
             os.makedirs(save_folder)

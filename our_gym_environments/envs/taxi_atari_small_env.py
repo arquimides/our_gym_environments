@@ -158,7 +158,7 @@ class TaxiAtariSmallEnv(Env):
         self.origin = None
         self.states = []
         self.relational_states = None
-        self.possible_states = []
+        self.possible_initial_states = [] # Do not include those with the passenger is already on his destination
 
         self.P = {
             state: {action: [] for action in range(self.num_actions)}
@@ -171,7 +171,7 @@ class TaxiAtariSmallEnv(Env):
                         state = self.encode(row, col, pass_idx, dest_idx)
                         if pass_idx != dest_idx:
                             self.initial_state_distrib[state] += 1
-                            self.possible_states.append([row,col,pass_idx,dest_idx])
+                            self.possible_initial_states.append([row,col,pass_idx,dest_idx])
                         for action in range(self.num_actions):
                             # defaults
                             new_row, new_col, new_pass_idx = row, col, pass_idx
@@ -333,9 +333,13 @@ class TaxiAtariSmallEnv(Env):
         relational_states = set()
         for state_number in range(self.num_states):
             array_state = self.decode(state_number)
-            current_state = self.convert_to_relational(array_state)
-            states_list.append(current_state)
-            relational_states.add(tuple(current_state))
+            if array_state[3] == self.destination:
+                current_state = self.convert_to_relational(array_state)
+                states_list.append(current_state)
+                relational_states.add(tuple(current_state))
+            else:
+                states_list.append(None)
+                relational_states.add(None)
         return states_list, relational_states
 
     def convert_to_relational(self, array_state):
@@ -568,8 +572,6 @@ class TaxiAtariSmallEnv(Env):
         if self.step_number >= self.maximum_episode_steps:
             truncated = True
 
-        # TODO cambiar este metodo para que devuela la observacion como una imagen en lugar del estado entero
-        # TODO tambien tengo que devolver el estado entero para poder extraer las variables relacionales
         return obs, reward, done, truncated, {"prob": 1, "description": self.info, "integer_state": int(s), "lives": self.lives}
 
 
@@ -637,8 +639,9 @@ class TaxiAtariSmallEnv(Env):
 
         if options is not None:
             if options['state_type'] == "original":
-                row, col, pass_idx, dest_idx = self.possible_states[options['state_index'] % len(self.possible_states)]
+                row, col, pass_idx, dest_idx = self.possible_initial_states[options['state_index'] % len(self.possible_initial_states)]
                 self.s = self.encode(row,col,pass_idx,dest_idx)
+                self.s = options['state_index']
             elif options['state_type'] == "relational":
                 self.s = self.random_state_from_relational(options['state_index'] % len(self.relational_states))
         else:
@@ -680,8 +683,6 @@ class TaxiAtariSmallEnv(Env):
 
     def _render_gui(self):
 
-        state_array = self.decode(self.s)
-
         try:
             import pygame  # dependency to pygame only if rendering with human
         except ImportError:
@@ -691,14 +692,14 @@ class TaxiAtariSmallEnv(Env):
 
         if self.window is None:
             pygame.init()
-            pygame.display.set_caption("TaxiSmall")
+            pygame.display.set_caption("TaxiAtariSmall")
             if self.render_mode == "human":
                 self.window = pygame.display.set_mode(WINDOW_SIZE)
             else:  # "rgb_array"
                 self.window = pygame.Surface(WINDOW_SIZE)
 
         if self.info is not None:
-            pygame.display.set_caption("TaxiSmall")
+            pygame.display.set_caption("TaxiAtariSmall")
             #print(self.info)
 
         if self.clock is None:
