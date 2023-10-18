@@ -499,7 +499,11 @@ class TaxiAtariSmallEnv(Env):
 
         # Reward for move actions independent of reward_type
         if 0 <= a <= 3 and (row, col) == (new_row, new_col):
-            reward = self.reward_variable_values[2]
+
+            if self.env_type == "deterministic":
+                reward = self.reward_variable_values[2]
+            elif self.env_type == "stochastic" and prob < self.trans_probs[self.actions[a]]:
+                reward = self.reward_variable_values[2]
 
         elif a == 4:  # pickup
 
